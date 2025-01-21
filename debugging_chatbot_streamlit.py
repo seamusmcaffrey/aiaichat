@@ -74,9 +74,9 @@ if st.button("🚀 Start AI Discussion"):
                     f"Analyze the issue and propose an initial approach.", conversation_context, model="claude"
                 )
                 st.session_state.chat_history.append({"role": "Claude", "content": claude_response})
-                st.markdown(f"### 🟡 Claude
+                st.markdown(f"""### 🟡 Claude
 
-{claude_response}", unsafe_allow_html=True)
+{claude_response}""", unsafe_allow_html=True)
 
             time.sleep(1)
 
@@ -85,9 +85,9 @@ if st.button("🚀 Start AI Discussion"):
                     f"Building on Claude's response, refine or challenge it to improve the solution.", conversation_context, model="gpt-4o"
                 )
                 st.session_state.chat_history.append({"role": "ChatGPT", "content": chatgpt_response})
-                st.markdown(f"### 🔵 ChatGPT
+                st.markdown(f"""### 🔵 ChatGPT
 
-{chatgpt_response}", unsafe_allow_html=True)
+{chatgpt_response}""", unsafe_allow_html=True)
 
             time.sleep(1)
 
@@ -104,8 +104,8 @@ if st.button("🚀 Start AI Discussion"):
         st.session_state.chat_history.append({"role": "Consensus", "content": final_consensus})
 
         st.success("🎯 Consensus reached!")
-        st.markdown(f"### ✅ Final Consensus
+        st.markdown(f"""### ✅ Final Consensus
 
-{final_consensus}", unsafe_allow_html=True)
+{final_consensus}""", unsafe_allow_html=True)
 
 st.download_button("📥 Download Chat History", data="\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.chat_history]), file_name="debug_chat_history.txt", mime="text/plain")
