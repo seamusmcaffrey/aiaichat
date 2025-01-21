@@ -28,14 +28,14 @@ def get_ai_response(prompt, context, model):
     try:
         if model == "claude":
             response = claude_client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-3-5-sonnet-latest",  # Updated Claude model
                 max_tokens=1024,
                 messages=[{"role": "user", "content": f"Format your response using Markdown. Use bold (**text**), bullet points (- item), and code blocks (```python).\n\n{context}\n\n{prompt}"}]
             )
             return response.content
         else:
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o",  # Updated ChatGPT model
                 messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}],
                 max_tokens=1024
             )
@@ -43,7 +43,7 @@ def get_ai_response(prompt, context, model):
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
-st.title("🤖 AI Debugging Chatbot: Final Fixed Version")
+st.title("🤖 AI Debugging Chatbot: Final Version")
 
 claude_client, openai_client = init_clients()
 
@@ -76,36 +76,36 @@ if st.button("🚀 Start AI Discussion"):
                 st.session_state.chat_history.append({"role": "Claude", "content": claude_response})
                 st.markdown(f"### 🟡 Claude
 
-{claude_response}", unsafe_allow_html=True)
+{claude_response}")
 
             time.sleep(1)
 
             with st.spinner(f"💡 Round {round_num+1}: ChatGPT is refining the approach..."):
                 chatgpt_response = get_ai_response(
-                    f"Building on Claude's response, refine or challenge it to improve the solution.", conversation_context, model="gpt-4"
+                    f"Building on Claude's response, refine or challenge it to improve the solution.", conversation_context, model="gpt-4o"
                 )
                 st.session_state.chat_history.append({"role": "ChatGPT", "content": chatgpt_response})
                 st.markdown(f"### 🔵 ChatGPT
 
-{chatgpt_response}", unsafe_allow_html=True)
+{chatgpt_response}")
 
             time.sleep(1)
 
             # Consensus Check
             consensus_prompt = "Based on the conversation so far, is there a clear best solution? Respond only with 'YES' or 'NO'."
-            consensus_check = get_ai_response(consensus_prompt, conversation_context, model="gpt-4")
+            consensus_check = get_ai_response(consensus_prompt, conversation_context, model="gpt-4o")
 
             if "YES" in consensus_check.upper():
                 break  # Stop early if consensus is reached
 
         # Generate final consensus solution
         final_consensus_prompt = "Summarize the best approach based on the AI discussion so far."
-        final_consensus = get_ai_response(final_consensus_prompt, conversation_context, model="gpt-4")
+        final_consensus = get_ai_response(final_consensus_prompt, conversation_context, model="gpt-4o")
         st.session_state.chat_history.append({"role": "Consensus", "content": final_consensus})
 
         st.success("🎯 Consensus reached!")
         st.markdown(f"### ✅ Final Consensus
 
-{final_consensus}", unsafe_allow_html=True)
+{final_consensus}")
 
 st.download_button("📥 Download Chat History", data="\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.chat_history]), file_name="debug_chat_history.txt", mime="text/plain")
