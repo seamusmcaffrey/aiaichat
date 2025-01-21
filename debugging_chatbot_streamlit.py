@@ -56,9 +56,11 @@ claude_client, openai_client = init_clients()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Allow more file types including .ts, .tsx, and other text-based formats
+# Allow more file types explicitly
 allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
+
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=None)  # Remove type filtering
+
 user_input = st.text_area("💡 Describe your coding problem:")
 
 max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
@@ -69,12 +71,17 @@ if st.button("🚀 Start AI Discussion"):
 
         file_content = ""
         if uploaded_file:
-            file_extension = uploaded_file.name.split('.')[-1]
+            file_extension = uploaded_file.name.split('.')[-1].lower()
+            
+            # Manually check the extension instead of relying on Streamlit's MIME filtering
             if file_extension in allowed_extensions:
-                file_content = uploaded_file.getvalue().decode("utf-8")
-                st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
+                try:
+                    file_content = uploaded_file.getvalue().decode("utf-8")
+                    st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
+                except UnicodeDecodeError:
+                    st.error("🚫 Unable to process this file. Ensure it's a valid text-based file.")
             else:
-                st.warning("⚠️ Unsupported file type uploaded.")
+                st.warning(f"⚠️ Unsupported file type: `{file_extension}`. Only text-based files are allowed.")
 
         conversation_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history])
 
