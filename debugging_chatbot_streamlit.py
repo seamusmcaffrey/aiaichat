@@ -28,14 +28,14 @@ def get_ai_response(prompt, context, model):
     try:
         if model == "claude":
             response = claude_client.messages.create(
-                model="claude-3-5-sonnet",
+                model="claude-3-5-sonnet-latest",
                 max_tokens=1024,  # Fix for Claude's missing max_tokens
                 messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}]
             )
             return response.content
         else:
             response = openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}],
                 max_tokens=1024  # Fix for OpenAI's updated API
             )
