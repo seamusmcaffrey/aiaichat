@@ -16,31 +16,34 @@ def init_clients():
         openai_api_key = st.secrets["OPENAI_API_KEY"]
         
         claude = Client(api_key=claude_api_key)
-        openai.api_key = openai_api_key
+        openai_client = openai.Client(api_key=openai_api_key)
         
-        return claude, openai
+        return claude, openai_client
     except Exception as e:
         st.error(f"Error initializing AI clients: {str(e)}")
         return None, None
+
 def get_ai_response(prompt, context, model):
-    """Get a response from the selected AI model"""
+    """Get a response from the selected AI model with correct API formatting"""
     try:
         if model == "claude":
             response = claude_client.messages.create(
                 model="claude-3-5-sonnet",
+                max_tokens=1024,  # Fix for Claude's missing max_tokens
                 messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}]
             )
             return response.content
         else:
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
-                messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}]
+                messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}],
+                max_tokens=1024  # Fix for OpenAI's updated API
             )
-            return response["choices"][0]["message"]["content"]
+            return response.choices[0].message.content
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
-st.title("AI Debugging Chatbot: Live Discussion")
+st.title("AI Debugging Chatbot: Fixed Version")
 
 claude_client, openai_client = init_clients()
 
