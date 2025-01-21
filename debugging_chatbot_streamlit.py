@@ -30,6 +30,17 @@ def init_clients():
         st.error(f"Error initializing AI clients: {str(e)}")
         return None, None
 
+def log_debug_info(file_name, mime_type, extension):
+    """Logs debug info and displays it in Streamlit."""
+    debug_info = f"""
+    ### 📂 Debug Log:
+    - **Uploaded File Name:** `{file_name}`
+    - **Detected MIME Type:** `{mime_type}`
+    - **Extracted Extension:** `{extension}`
+    """
+    st.markdown(debug_info)
+    logging.info(debug_info)
+
 def get_ai_response(prompt, history, model):
     """Get a response from the selected AI model with structured conversation flow"""
     try:
@@ -57,31 +68,24 @@ claude_client, openai_client = init_clients()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Allow more file types explicitly
+# Allow text-based files including .ts and .tsx
 allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
-
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=None)  # Remove MIME filtering
-
-user_input = st.text_area("💡 Describe your coding problem:")
-
-max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=None)  # No filtering
 
 if uploaded_file:
     # Extract file extension
     file_extension = uploaded_file.name.split('.')[-1].lower()
     detected_mime = mimetypes.guess_type(uploaded_file.name)[0]
 
-    st.write(f"📂 **Debug Log:**")
-    st.write(f"🔹 **Uploaded File Name:** `{uploaded_file.name}`")
-    st.write(f"🔹 **Detected MIME Type:** `{detected_mime}`")
-    st.write(f"🔹 **Extracted Extension:** `{file_extension}`")
+    # Log debug info
+    log_debug_info(uploaded_file.name, detected_mime, file_extension)
 
-    # If the MIME type is incorrect for TypeScript, manually override it
+    # If the MIME type is incorrectly detected, manually override it
     if detected_mime == "video/mp2t" and file_extension in ["ts", "tsx"]:
         detected_mime = "text/typescript"
-        st.write(f"⚠️ **Manually corrected MIME type to:** `{detected_mime}`")
+        st.warning(f"⚠️ **Manually corrected MIME type to:** `{detected_mime}`")
 
-    # Proceed if the extension is allowed
+    # Allow processing if extension is correct
     if file_extension in allowed_extensions or detected_mime.startswith("text"):
         try:
             file_content = uploaded_file.getvalue().decode("utf-8")
@@ -91,6 +95,10 @@ if uploaded_file:
             st.error("🚫 Unable to process this file. Ensure it's a valid text-based file.")
     else:
         st.error(f"⚠️ Unsupported file type: `{file_extension}` with MIME `{detected_mime}`. Only text-based files are allowed.")
+
+user_input = st.text_area("💡 Describe your coding problem:")
+
+max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
 
 if st.button("🚀 Start AI Discussion"):
     if user_input:
