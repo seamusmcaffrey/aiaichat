@@ -8,6 +8,12 @@ import time
 # Configure logging
 logging.getLogger().setLevel(logging.WARNING)
 
+# Set a custom favicon and title
+st.set_page_config(
+    page_title="🦜Parrot AI Thinktank",
+    page_icon="🦜"
+)
+
 @st.cache_resource
 def init_clients():
     """Initialize API clients for Claude and ChatGPT using Streamlit secrets"""
@@ -43,14 +49,16 @@ def get_ai_response(prompt, history, model):
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
-st.title("🤖 AI Debugging Chatbot: Conversational Mode")
+st.title("🦜Parrot AI Thinktank")
 
 claude_client, openai_client = init_clients()
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=["txt", "py", "json", "md"])
+# Allow more file types including .ts, .tsx, and other text-based formats
+allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
 user_input = st.text_area("💡 Describe your coding problem:")
 
 max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
@@ -61,8 +69,12 @@ if st.button("🚀 Start AI Discussion"):
 
         file_content = ""
         if uploaded_file:
-            file_content = uploaded_file.getvalue().decode("utf-8")
-            st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
+            file_extension = uploaded_file.name.split('.')[-1]
+            if file_extension in allowed_extensions:
+                file_content = uploaded_file.getvalue().decode("utf-8")
+                st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
+            else:
+                st.warning("⚠️ Unsupported file type uploaded.")
 
         conversation_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history])
 
