@@ -28,14 +28,14 @@ def get_ai_response(prompt, context, model):
     try:
         if model == "claude":
             response = claude_client.messages.create(
-                model="claude-3-5-sonnet-latest",  # Updated Claude model
+                model="claude-3-5-sonnet-latest",
                 max_tokens=1024,
                 messages=[{"role": "user", "content": f"Format your response using Markdown. Use bold (**text**), bullet points (- item), and code blocks (```python).\n\n{context}\n\n{prompt}"}]
             )
             return response.content
         else:
             response = openai_client.chat.completions.create(
-                model="gpt-4o",  # Updated ChatGPT model
+                model="gpt-4o",
                 messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}],
                 max_tokens=1024
             )
@@ -76,7 +76,7 @@ if st.button("🚀 Start AI Discussion"):
                 st.session_state.chat_history.append({"role": "Claude", "content": claude_response})
                 st.markdown(f"### 🟡 Claude
 
-{claude_response}")
+{claude_response}", unsafe_allow_html=True)
 
             time.sleep(1)
 
@@ -87,7 +87,7 @@ if st.button("🚀 Start AI Discussion"):
                 st.session_state.chat_history.append({"role": "ChatGPT", "content": chatgpt_response})
                 st.markdown(f"### 🔵 ChatGPT
 
-{chatgpt_response}")
+{chatgpt_response}", unsafe_allow_html=True)
 
             time.sleep(1)
 
@@ -106,6 +106,6 @@ if st.button("🚀 Start AI Discussion"):
         st.success("🎯 Consensus reached!")
         st.markdown(f"### ✅ Final Consensus
 
-{final_consensus}")
+{final_consensus}", unsafe_allow_html=True)
 
 st.download_button("📥 Download Chat History", data="\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.chat_history]), file_name="debug_chat_history.txt", mime="text/plain")
