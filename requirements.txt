@@ -1,0 +1,8 @@
+anthropic
+pinecone-client
+streamlit
+voyageai
+tenacity
+requests
+pydantic
+python-dotenv
