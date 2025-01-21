@@ -4,9 +4,10 @@ import openai
 from anthropic import Client
 import logging
 import time
+import mimetypes
 
 # Configure logging
-logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.INFO)
 
 # Set a custom favicon and title
 st.set_page_config(
@@ -59,29 +60,41 @@ if "chat_history" not in st.session_state:
 # Allow more file types explicitly
 allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
 
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=None)  # Remove type filtering
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=None)  # Remove MIME filtering
 
 user_input = st.text_area("💡 Describe your coding problem:")
 
 max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
 
+if uploaded_file:
+    # Extract file extension
+    file_extension = uploaded_file.name.split('.')[-1].lower()
+    detected_mime = mimetypes.guess_type(uploaded_file.name)[0]
+
+    st.write(f"📂 **Debug Log:**")
+    st.write(f"🔹 **Uploaded File Name:** `{uploaded_file.name}`")
+    st.write(f"🔹 **Detected MIME Type:** `{detected_mime}`")
+    st.write(f"🔹 **Extracted Extension:** `{file_extension}`")
+
+    # If the MIME type is incorrect for TypeScript, manually override it
+    if detected_mime == "video/mp2t" and file_extension in ["ts", "tsx"]:
+        detected_mime = "text/typescript"
+        st.write(f"⚠️ **Manually corrected MIME type to:** `{detected_mime}`")
+
+    # Proceed if the extension is allowed
+    if file_extension in allowed_extensions or detected_mime.startswith("text"):
+        try:
+            file_content = uploaded_file.getvalue().decode("utf-8")
+            st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
+            st.success("✅ File processed successfully!")
+        except UnicodeDecodeError:
+            st.error("🚫 Unable to process this file. Ensure it's a valid text-based file.")
+    else:
+        st.error(f"⚠️ Unsupported file type: `{file_extension}` with MIME `{detected_mime}`. Only text-based files are allowed.")
+
 if st.button("🚀 Start AI Discussion"):
     if user_input:
         st.session_state.chat_history.append({"role": "User", "content": user_input})
-
-        file_content = ""
-        if uploaded_file:
-            file_extension = uploaded_file.name.split('.')[-1].lower()
-            
-            # Manually check the extension instead of relying on Streamlit's MIME filtering
-            if file_extension in allowed_extensions:
-                try:
-                    file_content = uploaded_file.getvalue().decode("utf-8")
-                    st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content: {file_content}"})
-                except UnicodeDecodeError:
-                    st.error("🚫 Unable to process this file. Ensure it's a valid text-based file.")
-            else:
-                st.warning(f"⚠️ Unsupported file type: `{file_extension}`. Only text-based files are allowed.")
 
         conversation_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history])
 
