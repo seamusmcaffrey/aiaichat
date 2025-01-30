@@ -5,7 +5,7 @@ from anthropic import Client
 import logging
 import time
 import random
-import json
+import sys
 from datetime import datetime
 
 # Configure logging
@@ -23,69 +23,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Now we can add version info and debug panel to sidebar
-st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
+def clean_string(text):
+    """Clean string of invalid characters and standardize formatting"""
+    if not text:
+        return text
+    # Remove null bytes and other problematic characters
+    text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+    return text
 
-# Debug Info Section
-if st.sidebar.checkbox("Show Debug Info"):
-    st.sidebar.text("Debug Information")
-    st.sidebar.text(f"Python Version: {sys.version}")
-    st.sidebar.text(f"Streamlit Version: {st.__version__}")
-    st.sidebar.text(f"Current Working Directory: {os.getcwd()}")
-
-def log_operation(func):
-    """Decorator to log function operations"""
-    def wrapper(*args, **kwargs):
-        logger.info(f"Entering {func.__name__}")
-        try:
-            result = func(*args, **kwargs)
-            logger.info(f"Successfully completed {func.__name__}")
-            return result
-        except Exception as e:
-            logger.error(f"Error in {func.__name__}: {str(e)}")
-            raise
-    return wrapper
-
-@st.cache_resource
-def init_clients():
-    """Initialize API clients for all AI models using Streamlit secrets"""
-    logger.info("Initializing AI clients")
-    claude = None
-    openai_client = None
-    deepseek_api_key = None
-    
-    try:
-        if "CLAUDE_API_KEY" in st.secrets:
-            logger.info("Initializing Claude client")
-            claude_api_key = st.secrets["CLAUDE_API_KEY"]
-            claude = Client(api_key=claude_api_key)
-        
-        if "OPENAI_API_KEY" in st.secrets:
-            logger.info("Initializing OpenAI client")
-            openai_api_key = st.secrets["OPENAI_API_KEY"]
-            openai_client = openai.Client(api_key=openai_api_key)
-        
-        if "DEEPSEEK_API_KEY" in st.secrets:
-            logger.info("Getting DeepSeek API key")
-            deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
-        
-        # Log available services
-        services = []
-        if claude: services.append("Claude")
-        if openai_client: services.append("OpenAI")
-        if deepseek_api_key: services.append("DeepSeek")
-        logger.info(f"Available services: {', '.join(services)}")
-        
-        return claude, openai_client, deepseek_api_key
-    except Exception as e:
-        logger.error(f"Error initializing clients: {str(e)}")
-        st.error(f"Error initializing AI clients: {str(e)}")
-        return None, None, None
-
-@log_operation
 def format_code_blocks(text):
     """Format code blocks with proper markdown syntax"""
-    logger.info("Starting code block formatting")
     try:
         if not text:
             return text
@@ -115,23 +62,92 @@ def format_code_blocks(text):
         logger.error(f"Error in format_code_blocks: {str(e)}")
         return text
 
-@log_operation
-def format_paragraphs(text):
-    """Ensure proper paragraph spacing in markdown"""
-    logger.info("Starting paragraph formatting")
+def format_ai_response(response, is_code=False):
+    """Standardize AI response formatting"""
     try:
-        if not text:
-            return text
+        # Split into sections if they exist
+        if "Identified Issues" in response:
+            sections = response.split("\n#")
+            formatted_sections = []
+            for section in sections:
+                if section.strip():
+                    # Format section titles
+                    if section.startswith("# "):
+                        formatted_sections.append(f"\n## {section[2:]}")
+                    else:
+                        formatted_sections.append(section)
+                        
+            response = "\n".join(formatted_sections)
         
-        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-        result = '\n\n'.join(paragraphs)
-        logger.info("Paragraph formatting completed")
-        return result
+        # Format bullet points consistently
+        lines = response.split("\n")
+        formatted_lines = []
+        for line in lines:
+            if line.strip().startswith("*") or line.strip().startswith("-"):
+                formatted_lines.append(f"\n* {line.strip()[1:].strip()}")
+            else:
+                formatted_lines.append(line)
+                
+        response = "\n".join(formatted_lines)
+        
+        # Ensure code blocks are properly formatted
+        if is_code:
+            response = format_code_blocks(response)
+            
+        return clean_string(response)
     except Exception as e:
-        logger.error(f"Error in format_paragraphs: {str(e)}")
-        return text
+        logger.error(f"Error formatting response: {str(e)}")
+        return response
 
-@log_operation
+def get_chat_context(history, last_response=None):
+    """Generate contextual prompt for the next response"""
+    if last_response:
+        return f"""Previous response: {last_response}
+
+Please review the above response and provide your perspective. Consider:
+1. What aspects do you agree or disagree with?
+2. What important considerations might have been missed?
+3. What alternative approaches could be worth exploring?
+
+Current conversation history:
+{history}"""
+    return history
+
+@st.cache_resource
+def init_clients():
+    """Initialize API clients for all AI models using Streamlit secrets"""
+    logger.info("Initializing AI clients")
+    claude = None
+    openai_client = None
+    deepseek_api_key = None
+    
+    try:
+        if "CLAUDE_API_KEY" in st.secrets:
+            logger.info("Initializing Claude client")
+            claude_api_key = st.secrets["CLAUDE_API_KEY"]
+            claude = Client(api_key=claude_api_key)
+        
+        if "OPENAI_API_KEY" in st.secrets:
+            logger.info("Initializing OpenAI client")
+            openai_api_key = st.secrets["OPENAI_API_KEY"]
+            openai_client = openai.Client(api_key=openai_api_key)
+        
+        if "DEEPSEEK_API_KEY" in st.secrets:
+            logger.info("Getting DeepSeek API key")
+            deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
+        
+        services = []
+        if claude: services.append("Claude")
+        if openai_client: services.append("OpenAI")
+        if deepseek_api_key: services.append("DeepSeek")
+        logger.info(f"Available services: {', '.join(services)}")
+        
+        return claude, openai_client, deepseek_api_key
+    except Exception as e:
+        logger.error(f"Error initializing clients: {str(e)}")
+        st.warning(f"Some AI services may be unavailable: {str(e)}")
+        return None, None, None
+
 def get_ai_response(prompt, history, model, role):
     """Get a response from the selected AI model with assigned role"""
     logger.info(f"Getting AI response for model: {model}, role: {role}")
@@ -181,12 +197,22 @@ def get_ai_response(prompt, history, model, role):
             content = response.choices[0].message.content
 
         logger.info(f"Successfully got response from {model}")
-        formatted_content = format_code_blocks(format_paragraphs(content))
+        formatted_content = format_ai_response(content, is_code=True)
         return formatted_content
     except Exception as e:
         error_msg = f"Error generating response from {model}: {str(e)}"
         logger.error(error_msg)
         return error_msg
+
+# Now we can add version info and debug panel to sidebar
+st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
+
+# Debug Info Section
+if st.sidebar.checkbox("Show Debug Info"):
+    st.sidebar.text("Debug Information")
+    st.sidebar.text(f"Python Version: {sys.version}")
+    st.sidebar.text(f"Streamlit Version: {st.__version__}")
+    st.sidebar.text(f"Current Working Directory: {os.getcwd()}")
 
 # Initialize AI clients
 logger.info("Starting client initialization")
@@ -216,6 +242,8 @@ if use_deepseek and available_models["deepseek"]:
     selected_models.append(("deepseek", "🟣 DeepSeek"))
 
 logger.info(f"Selected models: {selected_models}")
+
+st.title("🦜 Parrot AI Thinktank")
 
 if len(selected_models) < 2:
     st.warning("Please select at least two AI models for discussion")
@@ -254,22 +282,38 @@ if st.button("🚀 Start AI Discussion"):
         # Randomize initial responder order
         random.shuffle(selected_models)
         logger.info(f"Randomized model order: {selected_models}")
-
+        
+        last_response = None
         for round_num in range(max_rounds):
             logger.info(f"Starting round {round_num + 1}")
             for model, model_name in selected_models:
                 with st.spinner(f"💭 {model_name} is thinking..."):
+                    # Generate contrarian prompt based on context
+                    if round_num == 0:
+                        base_prompt = "Analyze the issue and propose a detailed solution, focusing on:"
+                        if model == "claude":
+                            base_prompt += "\n1. Code architecture and implementation details\n2. Performance implications\n3. Error handling strategies"
+                        elif model == "gpt4":
+                            base_prompt += "\n1. User experience and interaction flow\n2. Edge cases and potential issues\n3. Testing considerations"
+                        else:
+                            base_prompt += "\n1. Technical feasibility\n2. Scalability concerns\n3. Integration challenges"
+                    else:
+                        base_prompt = get_chat_context(conversation_context, last_response)
+                    
                     response = get_ai_response(
-                        "Analyze the issue and propose a detailed solution." if round_num == 0
-                        else f"Consider the previous response and provide your perspective.",
+                        base_prompt,
                         conversation_context,
                         model,
                         "Code Expert"
                     )
                     
-                    st.session_state.chat_history.append({"role": model_name, "content": response})
+                    # Format response and update context
+                    formatted_response = format_ai_response(response, is_code=True)
+                    last_response = formatted_response
                     
-                    # Style the response
+                    st.session_state.chat_history.append({"role": model_name, "content": formatted_response})
+                    
+                    # Style the response with background color
                     bg_colors = {
                         "🔵 GPT-4": "rgba(0, 122, 255, 0.1)",
                         "🟡 Claude": "rgba(255, 196, 0, 0.1)",
@@ -286,7 +330,7 @@ if st.button("🚀 Start AI Discussion"):
                             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                         ">
                             <h3>{model_name} (Code Expert)</h3>
-                            <div>{response}</div>
+                            <div>{formatted_response}</div>
                         </div>
                         """,
                         unsafe_allow_html=True
