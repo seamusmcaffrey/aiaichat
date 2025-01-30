@@ -65,39 +65,62 @@ def format_code_blocks(text):
 def format_ai_response(response, is_code=False):
     """Standardize AI response formatting"""
     try:
-        # Split into sections if they exist
-        if "Identified Issues" in response:
-            sections = response.split("\n#")
-            formatted_sections = []
-            for section in sections:
-                if section.strip():
-                    # Format section titles
-                    if section.startswith("# "):
-                        formatted_sections.append(f"\n## {section[2:]}")
-                    else:
-                        formatted_sections.append(section)
-                        
-            response = "\n".join(formatted_sections)
+        # Ensure response is a string
+        if isinstance(response, list):
+            response = ' '.join(str(item) for item in response)
+        response = str(response)
         
-        # Format bullet points consistently
-        lines = response.split("\n")
-        formatted_lines = []
-        for line in lines:
-            if line.strip().startswith("*") or line.strip().startswith("-"):
-                formatted_lines.append(f"\n* {line.strip()[1:].strip()}")
+        # Pre-process the response to handle common formatting issues
+        response = response.replace('\r\n', '\n')  # Normalize line endings
+        
+        # Add section headers if they don't exist
+        if not any(header in response for header in ['Identified Issues', 'Proposed Solutions', 'Conclusion']):
+            parts = response.split('\n\n')
+            if len(parts) > 2:
+                response = "## Analysis\n\n" + response
+
+        # Format sections consistently
+        sections = []
+        current_section = []
+        
+        for line in response.split('\n'):
+            if line.strip().startswith('#'):
+                if current_section:
+                    sections.append('\n'.join(current_section))
+                    current_section = []
+                # Ensure consistent header formatting
+                header_text = line.lstrip('#').strip()
+                current_section.append(f"\n## {header_text}")
+            elif line.strip().startswith(('*', '-', '•')):
+                # Format list items consistently
+                item_text = line.lstrip('*-• ').strip()
+                current_section.append(f"* {item_text}")
             else:
-                formatted_lines.append(line)
-                
-        response = "\n".join(formatted_lines)
+                current_section.append(line)
+        
+        if current_section:
+            sections.append('\n'.join(current_section))
+            
+        response = '\n\n'.join(sections)
         
         # Ensure code blocks are properly formatted
         if is_code:
             response = format_code_blocks(response)
             
-        return clean_string(response)
+        # Final cleanup
+        response = clean_string(response)
+        
+        # Add spacing after headers and before lists
+        response = response.replace('\n##', '\n\n##')
+        response = response.replace('\n*', '\n\n*')
+        
+        return response.strip()
     except Exception as e:
         logger.error(f"Error formatting response: {str(e)}")
-        return response
+        if isinstance(response, (str, list)):
+            # Return raw response if formatting fails
+            return str(response) if isinstance(response, list) else response
+        return "Error formatting response"
 
 def get_chat_context(history, last_response=None):
     """Generate contextual prompt for the next response"""
@@ -155,8 +178,23 @@ def get_ai_response(prompt, history, model, role):
         role_context = f"You are acting as a {role}. "
         
         if model == "claude":
+            prompt_template = f"""
+You are a coding expert analyzing technical issues. Please provide your analysis in a clear, structured format with sections and bullet points.
+
+Context: {role_context}
+
+History: {history}
+
+Task: {prompt}
+
+Please structure your response with:
+1. Clear section headers (##)
+2. Bulleted lists for key points (*)
+3. Code examples in proper code blocks (```)
+4. A conclusion section
+"""
             messages = [
-                {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
+                {"role": "user", "content": prompt_template}
             ]
             response = claude_client.messages.create(
                 model="claude-3-5-sonnet-latest",
