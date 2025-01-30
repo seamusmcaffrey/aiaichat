@@ -75,16 +75,57 @@ def init_clients():
         if missing_keys:
             st.warning(f"⚠️ Some AI services are unavailable: {', '.join(missing_keys)}. The app will work with limited functionality.")
 
+def format_code_blocks(text):
+    """Format code blocks with proper markdown syntax"""
+    if not text:
+        return text
+        
+    # Handle triple backtick code blocks
+    lines = text.split('\n')
+    formatted_lines = []
+    in_code_block = False
+    
+    for line in lines:
+        if line.strip().startswith('```'):
+            in_code_block = not in_code_block
+            formatted_lines.append(line)
+        else:
+            if in_code_block:
+                # Preserve indentation in code blocks
+                formatted_lines.append(line)
+            else:
+                # Handle inline code
+                formatted_lines.append(line)
+    
+    return '\n'.join(formatted_lines)
+
+def format_paragraphs(text):
+    """Ensure proper paragraph spacing in markdown"""
+    if not text:
+        return text
+        
+    # Split on double newlines and filter empty strings
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    
+    # Rejoin with consistent spacing
+    return '\n\n'.join(paragraphs)
+
 def get_ai_response(prompt, history, model, role):
     """Get a response from the selected AI model with assigned role"""
     try:
         role_context = f"You are acting as a {role}. "
         
-        # Format system and user messages
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant"},
-            {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
-        ]
+        # Format messages appropriately for each model
+        if model == "claude":
+            messages = [
+                {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
+            ]
+        else:
+            # For GPT-4 and DeepSeek
+            messages = [
+                {"role": "system", "content": f"You are acting as a {role}."},
+                {"role": "user", "content": f"{history}\n\n{prompt}"}
+            ]
         
         if model == "claude":
             response = claude_client.messages.create(
