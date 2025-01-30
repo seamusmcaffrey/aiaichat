@@ -1,3 +1,4 @@
 streamlit
 openai
 anthropic
+markdown2==2.4.10

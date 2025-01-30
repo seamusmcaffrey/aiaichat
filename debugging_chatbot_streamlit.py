@@ -8,13 +8,31 @@ import random
 import sys
 from datetime import datetime
 
+# Set page config FIRST - before any other Streamlit commands
+st.set_page_config(
+    page_title="Parrot AI Thinktank",
+    page_icon="🦜",
+    layout="wide"
+)
+
+# Version tracking
+VERSION = "1.0.1"
+LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Try to import markdown2, but don't fail if not available
 try:
     import markdown2
     HAS_MARKDOWN2 = True
+    logger.info("markdown2 successfully imported")
 except ImportError:
     HAS_MARKDOWN2 = False
-    st.sidebar.warning("📝 markdown2 not installed. Install with 'pip install markdown2' for better formatting.")
+    logger.warning("markdown2 not installed - using basic formatting")
+    # Show warning in sidebar AFTER page_config
+    st.sidebar.warning("📝 To enable better formatting, run: `pip install markdown2`")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
