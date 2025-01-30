@@ -77,27 +77,30 @@ def init_clients():
 
 def format_code_blocks(text):
     """Format code blocks with proper markdown syntax"""
-    if not text:
-        return text
+    try:
+        if not text:
+            return text
+            
+        # Handle triple backtick code blocks
+        lines = text.split('\n')
+        formatted_lines = []
+        in_code_block = False
         
-    # Handle triple backtick code blocks
-    lines = text.split('\n')
-    formatted_lines = []
-    in_code_block = False
-    
-    for line in lines:
-        if line.strip().startswith('```'):
-            in_code_block = not in_code_block
-            formatted_lines.append(line)
-        else:
-            if in_code_block:
-                # Preserve indentation in code blocks
+        for line in lines:
+            if line.strip().startswith('```'):
+                in_code_block = not in_code_block
                 formatted_lines.append(line)
             else:
-                # Handle inline code
-                formatted_lines.append(line)
-    
-    return '\n'.join(formatted_lines)
+                if in_code_block:
+                    # Preserve indentation in code blocks
+                    formatted_lines.append(line)
+                else:
+                    # Handle inline code
+                    formatted_lines.append(line)
+        
+        return '\n'.join(formatted_lines)
+    except Exception as e:
+        return text  # Return original text if formatting fails
 
 def format_paragraphs(text):
     """Ensure proper paragraph spacing in markdown"""
@@ -120,12 +123,46 @@ def get_ai_response(prompt, history, model, role):
             messages = [
                 {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
             ]
-        else:
-            # For GPT-4 and DeepSeek
+            response = claude_client.messages.create(
+                model="claude-3-5-sonnet-latest",
+                max_tokens=1024,
+                messages=messages
+            )
+            content = response.content
+        elif model == "gpt4":
             messages = [
                 {"role": "system", "content": f"You are acting as a {role}."},
                 {"role": "user", "content": f"{history}\n\n{prompt}"}
             ]
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.7
+            )
+            content = response.choices[0].message.content
+        elif model == "deepseek":
+            messages = [
+                {"role": "system", "content": f"You are acting as a {role}."},
+                {"role": "user", "content": f"{history}\n\n{prompt}"}
+            ]
+            deepseek_client = openai.Client(
+                base_url="https://api.deepseek.com/v1",
+                api_key=deepseek_api_key,
+            )
+            response = deepseek_client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1024,
+                stream=False
+            )
+            content = response.choices[0].message.content
+            
+        # Format the response content
+        return format_code_blocks(format_paragraphs(content))
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
         
         if model == "claude":
             response = claude_client.messages.create(
@@ -134,9 +171,9 @@ def get_ai_response(prompt, history, model, role):
                 messages=messages
             )
             content = response.content
-        elif model == "gpt-4o":
+        elif model == "gpt4":
             response = openai_client.chat.completions.create(
-                model="gpt-4o",  # Updated to use standard GPT-4 model name
+                model="gpt-4",  # Updated to use standard GPT-4 model name
                 messages=messages,
                 max_tokens=1024,
                 temperature=0.7
