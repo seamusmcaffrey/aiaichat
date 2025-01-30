@@ -134,11 +134,12 @@ def get_ai_response(prompt, history, model, role):
                 messages=messages
             )
             content = response.content
-        elif model == "gpt4":
+        elif model == "gpt-4o":
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o",  # Updated to use standard GPT-4 model name
                 messages=messages,
-                max_tokens=1024
+                max_tokens=1024,
+                temperature=0.7
             )
             content = response.choices[0].message.content
         elif model == "deepseek":
