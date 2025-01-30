@@ -68,7 +68,7 @@ Recommendation: Classify hotdog as its own microservice in the food hierarchy. F
 In conclusion: A hotdog is not a sandwich - it's a deployment configuration."""}
 ]
 
-# Set page config FIRST - before any other Streamlit commands
+# Set page config FIRST
 st.set_page_config(
     page_title="Parrot AI Thinktank",
     page_icon="🦜",
@@ -83,6 +83,24 @@ logger = logging.getLogger(__name__)
 VERSION = "1.0.1"
 LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+# Add demo warning notice at the top
+st.error("🚨 This is a demo page. Please visit https://www.prometheus.ninja/ for instructions on setting it up for use!", icon="🔗")
+
+# Move input elements to top
+st.write("## Start a Discussion")
+allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
+user_input = st.text_area("💡 Describe your coding problem:", value="Is a hotdog a sandwich?", height=100)
+col1, col2 = st.columns([3, 1])
+with col1:
+    max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
+with col2:
+    st.write("")  # Spacing
+    st.write("")  # Spacing
+    start_button = st.button("🚀 Start AI Discussion")
+
+st.divider()  # Add visual separation
+
 # Initialize session state
 if "showing_demo" not in st.session_state:
     logger.info("Initializing demo state")
@@ -92,8 +110,8 @@ if "showing_demo" not in st.session_state:
 if "model_selection" not in st.session_state:
     logger.info("Initializing model selection state")
     st.session_state.model_selection = {
-        "claude": True,  # Default Claude to selected
-        "gpt4": True,    # Default GPT-4 to selected
+        "claude": True,
+        "gpt4": True,
         "deepseek": False
     }
 
@@ -132,30 +150,20 @@ def init_clients():
         return claude, openai_client, deepseek_api_key
     except Exception as e:
         logger.error(f"Error initializing clients: {str(e)}")
-        st.warning(f"Some AI services may be unavailable: {str(e)}")
+        if not st.session_state.showing_demo:
+            st.warning("⚠️ Running in demo mode - API keys not configured.")
         return None, None, None
 
 # Initialize AI clients
 claude_client, openai_client, deepseek_api_key = init_clients()
 
-# Model selection with availability and state management
+# Model selection
 st.sidebar.header("Select AI Models for Discussion")
-
-# Check if we have any API keys configured
-has_api_keys = any([claude_client, openai_client, deepseek_api_key])
-
-if not has_api_keys and not st.session_state.showing_demo:
-    st.sidebar.warning("⚠️ No API keys configured\nOnly demo mode available")
-
 available_models = {
     "claude": claude_client is not None or st.session_state.showing_demo,
     "gpt4": openai_client is not None or st.session_state.showing_demo,
     "deepseek": deepseek_api_key is not None or st.session_state.showing_demo
 }
-
-# If we're in demo mode, make models available regardless of API keys
-if st.session_state.showing_demo:
-    available_models = {k: True for k in available_models}
 
 logger.info(f"Available models: {available_models}")
 
@@ -194,22 +202,12 @@ if use_deepseek and available_models["deepseek"]:
 
 logger.info(f"Selected models: {selected_models}")
 
-# After page config and before model selection...
-
-# Add demo warning header
-st.error("🚨 This is a demo page. Please visit https://www.prometheus.ninja/ for instructions on setting it up for use!", icon="🔗")
-
-# Move input elements to top
-allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
-user_input = st.text_area("💡 Describe your coding problem:", value="Is a hotdog a sandwich?")
-max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
-
-start_button = st.button("🚀 Start AI Discussion")
-
-st.divider()  # Add visual separation
-
 st.title("🦜 Parrot AI Thinktank")
+
+# Only show warning if not in demo mode and models are actively deselected
+if len(selected_models) < 2 and not st.session_state.showing_demo:
+    st.warning("Please select at least two AI models for discussion")
+    st.stop()
 
 # Display demo if we're in demo state
 if st.session_state.showing_demo:
@@ -240,17 +238,13 @@ if st.session_state.showing_demo:
                 unsafe_allow_html=True
             )
 
-# File upload and user input
-allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
-uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
-user_input = st.text_area("💡 Describe your coding problem:")
-
-max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
-
 def get_ai_response(prompt, history, model, role):
     """Get a response from the selected AI model with assigned role"""
     logger.info(f"Getting AI response for model: {model}, role: {role}")
     try:
+        if st.session_state.showing_demo:
+            return "Demo mode - responses are pre-configured examples only."
+            
         role_context = f"You are acting as a {role}. "
         
         if model == "claude":
@@ -302,7 +296,7 @@ def get_ai_response(prompt, history, model, role):
         logger.error(error_msg)
         return error_msg
 
-if st.button("🚀 Start AI Discussion"):
+if start_button:
     logger.info("Starting new AI discussion - clearing demo state")
     st.session_state.showing_demo = False
     st.session_state.chat_history = []
@@ -336,7 +330,6 @@ if st.button("🚀 Start AI Discussion"):
             logger.info(f"Starting round {round_num + 1}")
             for model, model_name in selected_models:
                 with st.spinner(f"💭 {model_name} is thinking..."):
-                    # Generate contrarian prompt based on context
                     if round_num == 0:
                         base_prompt = "Analyze the issue and propose a detailed solution, focusing on:"
                         if model == "claude":
@@ -364,4 +357,80 @@ Current conversation history:
                     )
                     
                     last_response = response
-                    st.session_state.chat_history.append({"role": model_name, "content":
+                    st.session_state.chat_history.append({"role": model_name, "content": response})
+                    
+                    # Style the response with background color
+                    bg_colors = {
+                        "🔵 GPT-4": "rgba(0, 122, 255, 0.1)",
+                        "🟡 Claude": "rgba(255, 196, 0, 0.1)",
+                        "🟣 DeepSeek": "rgba(147, 51, 234, 0.1)",
+                        "Consensus": "rgba(0, 200, 0, 0.1)"
+                    }
+                    
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color: {bg_colors[model_name]};
+                            border-radius: 10px;
+                            padding: 20px;
+                            margin: 10px 0;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        ">
+                            <h3>{model_name} ({model_roles[model]})</h3>
+                            <div>{response}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                
+                time.sleep(1)
+            
+            logger.info(f"Completed round {round_num + 1}")
+
+        # Generate and display final consensus
+        st.markdown("### ✅ Final Consensus")
+        consensus_prompt = """Please provide a clear consensus summary that:
+1. Synthesizes the key agreements between participants
+2. Highlights the best solutions agreed upon
+3. Provides concrete next steps for implementation
+4. Addresses any remaining concerns"""
+        
+        consensus = get_ai_response(
+            consensus_prompt,
+            conversation_context,
+            "gpt4",
+            "Consensus Builder"
+        )
+        
+        st.session_state.chat_history.append({"role": "Consensus", "content": consensus})
+        
+        consensus_container = st.container()
+        with consensus_container:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: rgba(0, 200, 0, 0.1);
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                ">
+                    <h3>Final Consensus</h3>
+                    <div>{consensus}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
+            if st.button("📋 Copy Consensus"):
+                st.write(
+                    f"""
+                    <script>
+                        navigator.clipboard.writeText(`{consensus}`);
+                        alert('Consensus copied to clipboard!');
+                    </script>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+logger.info("Script execution completed")
