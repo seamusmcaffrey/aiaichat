@@ -216,6 +216,12 @@ user_input = st.text_area("💡 Describe your coding problem:")
 max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
 
 if st.button("🚀 Start AI Discussion"):
+    # Clear demo state and start new discussion
+    st.session_state.showing_demo = False
+    st.session_state.chat_history = []
+    
+    if user_input:
+        logger.info("Starting new AI discussion")
     logger.info("Starting new AI discussion")
     if user_input:
         st.session_state.chat_history.append({"role": "User", "content": user_input})
