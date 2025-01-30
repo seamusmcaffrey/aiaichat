@@ -16,15 +16,15 @@ logger = logging.getLogger(__name__)
 VERSION = "1.0.1"
 LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Display version info
-st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
-
-# Set page title and favicon
+# Set page config FIRST - before any other Streamlit commands
 st.set_page_config(
     page_title="Parrot AI Thinktank",
     page_icon="🦜",
     layout="wide"
 )
+
+# Now we can add version info and debug panel to sidebar
+st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
 
 # Debug Info Section
 if st.sidebar.checkbox("Show Debug Info"):
