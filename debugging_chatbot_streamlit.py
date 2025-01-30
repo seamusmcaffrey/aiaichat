@@ -113,8 +113,65 @@ def get_ai_response(prompt, history, model, role):
         logger.error(error_msg)
         return error_msg
 
-# Display version info
-st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
+# AI Expert Roles for randomization
+AI_ROLES = [
+    "Code Architecture Expert",
+    "Performance Optimization Guru",
+    "UX/UI Design Specialist",
+    "Systems Integration Expert",
+    "Database Design Oracle",
+    "Security Implementation Sage",
+    "API Design Architect",
+    "Testing & QA Mastermind",
+    "DevOps Engineering Wizard",
+    "Cloud Infrastructure Expert",
+    "Mobile Development Specialist",
+    "Frontend Framework Guru",
+    "Backend Systems Architect",
+    "Machine Learning Engineer",
+    "Scalability Expert"
+]
+
+# Initial demo state for homepage
+DEMO_CONVERSATION = [
+    {"role": "User", "content": "Is a hotdog a sandwich? Please analyze this from a software architecture perspective."},
+    {"role": "🔵 GPT-4", "content": """As a Systems Integration Expert, let me analyze this using software design patterns:
+
+If we model a sandwich using Object-Oriented Design, we'd have:
+```python
+class Sandwich(FoodItem):
+    def __init__(self, fillings: List[Ingredient], bread_type: BreadContainer):
+        self.fillings = fillings
+        self.container = bread_type
+```
+
+The hotdog presents an interesting inheritance vs. composition dilemma. While it implements the key sandwich interface (bread containing fillings), its unique cylindrical bread architecture suggests it might be better as a separate microservice... I mean, food category."""},
+    {"role": "🟡 Claude", "content": """As a Code Architecture Expert, I must respectfully disagree with the proposed inheritance model.
+
+A hotdog clearly violates the Liskov Substitution Principle - you cannot reliably substitute a hotdog in contexts expecting a sandwich without breaking the application's... I mean, diner's expectations. 
+
+The single-seam bread architecture and cylindrical payload structure suggest this is more of a "Food Wrapper" pattern:
+```python
+class HotDog(WrapperFood):
+    def __init__(self, filling: Sausage, bun: CylindricalBun):
+        super().__init__(container=bun)
+        self.validate_structural_integrity()
+```"""},
+    {"role": "🔵 GPT-4", "content": """Your point about LSP is well-taken, but perhaps we're approaching this too rigidly. What about a Decorator pattern?
+
+A hotdog could be viewed as a runtime decoration of a base sausage component, with the bun acting as a stateless wrapper... Though I admit this architecture falls apart under load (literally, if the bun isn't properly reinforced)."""},
+    {"role": "Consensus", "content": """After careful technical analysis, we've reached consensus that a hotdog implements a unique architectural pattern distinct from traditional sandwich design principles.
+
+Key findings:
+1. Violates standard sandwich interface expectations
+2. Implements a specialized wrapper pattern
+3. Has unique structural integrity requirements
+4. Cannot be safely substituted in sandwich contexts
+
+Recommendation: Classify hotdog as its own microservice in the food hierarchy. Further investigation needed for edge cases like subway sandwiches which share the single-seam architecture.
+
+In conclusion: A hotdog is not a sandwich - it's a deployment configuration."""}
+]
 
 # Initialize AI clients
 claude_client, openai_client, deepseek_api_key = init_clients()
@@ -178,9 +235,11 @@ if st.button("🚀 Start AI Discussion"):
 
         conversation_context = "\n\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history])
         
-        # Randomize initial responder order
+        # Randomize initial responder order and assign random roles
         random.shuffle(selected_models)
+        model_roles = {model: random.choice(AI_ROLES) for model, _ in selected_models}
         logger.info(f"Randomized model order: {selected_models}")
+        logger.info(f"Assigned roles: {model_roles}")
         
         last_response = None
         for round_num in range(max_rounds):
@@ -211,7 +270,7 @@ Current conversation history:
                         base_prompt,
                         conversation_context,
                         model,
-                        "Code Expert"
+                        model_roles[model]
                     )
                     
                     last_response = response
