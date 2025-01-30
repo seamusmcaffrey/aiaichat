@@ -1,167 +1,28 @@
 import os
+import sys
+import time
+import random
+import logging
+from datetime import datetime
 import streamlit as st
 import openai
 from anthropic import Client
-import logging
-import time
-import random
-import sys
-from datetime import datetime
 
-# Set page config FIRST - before any other Streamlit commands
+# IMPORTANT: st.set_page_config must be the absolute first Streamlit command
 st.set_page_config(
     page_title="Parrot AI Thinktank",
     page_icon="🦜",
     layout="wide"
 )
 
-# Version tracking
-VERSION = "1.0.1"
-LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# Configure logging
+# Now we can do other initialization
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Try to import markdown2, but don't fail if not available
-try:
-    import markdown2
-    HAS_MARKDOWN2 = True
-    logger.info("markdown2 successfully imported")
-except ImportError:
-    HAS_MARKDOWN2 = False
-    logger.warning("markdown2 not installed - using basic formatting")
-    # Show warning in sidebar AFTER page_config
-    st.sidebar.warning("📝 To enable better formatting, run: `pip install markdown2`")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Add version tracking
 VERSION = "1.0.1"
 LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Set page config FIRST - before any other Streamlit commands
-st.set_page_config(
-    page_title="Parrot AI Thinktank",
-    page_icon="🦜",
-    layout="wide"
-)
-
-def clean_string(text):
-    """Clean string of invalid characters and standardize formatting"""
-    if not text:
-        return text
-    # Remove null bytes and other problematic characters
-    text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
-    return text
-
-def format_code_blocks(text):
-    """Format code blocks with proper markdown syntax"""
-    try:
-        if not text:
-            return text
-            
-        lines = text.split('\n')
-        formatted_lines = []
-        in_code_block = False
-        
-        for i, line in enumerate(lines):
-            try:
-                if line.strip().startswith('```'):
-                    in_code_block = not in_code_block
-                    formatted_lines.append(line)
-                else:
-                    if in_code_block:
-                        formatted_lines.append(line)
-                    else:
-                        formatted_lines.append(line)
-            except Exception as e:
-                logger.error(f"Error processing line {i}: {str(e)}")
-                formatted_lines.append(line)
-        
-        result = '\n'.join(formatted_lines)
-        logger.info("Code block formatting completed")
-        return result
-    except Exception as e:
-        logger.error(f"Error in format_code_blocks: {str(e)}")
-        return text
-
-def format_ai_response(response, is_code=False):
-    """Standardize AI response formatting"""
-    try:
-        # Ensure response is a string
-        if isinstance(response, list):
-            response = ' '.join(str(item) for item in response)
-        response = str(response)
-        
-        # Pre-process the response to handle common formatting issues
-        response = response.replace('\r\n', '\n')  # Normalize line endings
-        
-        # Add section headers if they don't exist
-        if not any(header in response for header in ['Identified Issues', 'Proposed Solutions', 'Conclusion']):
-            parts = response.split('\n\n')
-            if len(parts) > 2:
-                response = "## Analysis\n\n" + response
-
-        # Format sections consistently
-        sections = []
-        current_section = []
-        
-        for line in response.split('\n'):
-            if line.strip().startswith('#'):
-                if current_section:
-                    sections.append('\n'.join(current_section))
-                    current_section = []
-                # Ensure consistent header formatting
-                header_text = line.lstrip('#').strip()
-                current_section.append(f"\n## {header_text}")
-            elif line.strip().startswith(('*', '-', '•')):
-                # Format list items consistently
-                item_text = line.lstrip('*-• ').strip()
-                current_section.append(f"* {item_text}")
-            else:
-                current_section.append(line)
-        
-        if current_section:
-            sections.append('\n'.join(current_section))
-            
-        response = '\n\n'.join(sections)
-        
-        # Ensure code blocks are properly formatted
-        if is_code:
-            response = format_code_blocks(response)
-            
-        # Final cleanup
-        response = clean_string(response)
-        
-        # Add spacing after headers and before lists
-        response = response.replace('\n##', '\n\n##')
-        response = response.replace('\n*', '\n\n*')
-        
-        return response.strip()
-    except Exception as e:
-        logger.error(f"Error formatting response: {str(e)}")
-        if isinstance(response, (str, list)):
-            # Return raw response if formatting fails
-            return str(response) if isinstance(response, list) else response
-        return "Error formatting response"
-
-def get_chat_context(history, last_response=None):
-    """Generate contextual prompt for the next response"""
-    if last_response:
-        return f"""Previous response: {last_response}
-
-Please review the above response and provide your perspective. Consider:
-1. What aspects do you agree or disagree with?
-2. What important considerations might have been missed?
-3. What alternative approaches could be worth exploring?
-
-Current conversation history:
-{history}"""
-    return history
-
+# Initialize clients
 @st.cache_resource
 def init_clients():
     """Initialize API clients for all AI models using Streamlit secrets"""
@@ -204,23 +65,8 @@ def get_ai_response(prompt, history, model, role):
         role_context = f"You are acting as a {role}. "
         
         if model == "claude":
-            prompt_template = f"""
-You are a coding expert analyzing technical issues. Please provide your analysis in a clear, structured format with sections and bullet points.
-
-Context: {role_context}
-
-History: {history}
-
-Task: {prompt}
-
-Please structure your response with:
-1. Clear section headers (##)
-2. Bulleted lists for key points (*)
-3. Code examples in proper code blocks (```)
-4. A conclusion section
-"""
             messages = [
-                {"role": "user", "content": prompt_template}
+                {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
             ]
             response = claude_client.messages.create(
                 model="claude-3-5-sonnet-latest",
@@ -261,25 +107,16 @@ Please structure your response with:
             content = response.choices[0].message.content
 
         logger.info(f"Successfully got response from {model}")
-        formatted_content = format_ai_response(content, is_code=True)
-        return formatted_content
+        return content
     except Exception as e:
         error_msg = f"Error generating response from {model}: {str(e)}"
         logger.error(error_msg)
         return error_msg
 
-# Now we can add version info and debug panel to sidebar
+# Display version info
 st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
 
-# Debug Info Section
-if st.sidebar.checkbox("Show Debug Info"):
-    st.sidebar.text("Debug Information")
-    st.sidebar.text(f"Python Version: {sys.version}")
-    st.sidebar.text(f"Streamlit Version: {st.__version__}")
-    st.sidebar.text(f"Current Working Directory: {os.getcwd()}")
-
 # Initialize AI clients
-logger.info("Starting client initialization")
 claude_client, openai_client, deepseek_api_key = init_clients()
 
 # Model selection with availability checks
@@ -304,8 +141,6 @@ if use_gpt4 and available_models["gpt4"]:
     selected_models.append(("gpt4", "🔵 GPT-4"))
 if use_deepseek and available_models["deepseek"]:
     selected_models.append(("deepseek", "🟣 DeepSeek"))
-
-logger.info(f"Selected models: {selected_models}")
 
 st.title("🦜 Parrot AI Thinktank")
 
@@ -362,7 +197,15 @@ if st.button("🚀 Start AI Discussion"):
                         else:
                             base_prompt += "\n1. Technical feasibility\n2. Scalability concerns\n3. Integration challenges"
                     else:
-                        base_prompt = get_chat_context(conversation_context, last_response)
+                        base_prompt = f"""Previous response: {last_response}
+
+Please review the above response and provide your perspective. Consider:
+1. What aspects do you agree or disagree with?
+2. What important considerations might have been missed?
+3. What alternative approaches could be worth exploring?
+
+Current conversation history:
+{conversation_context}"""
                     
                     response = get_ai_response(
                         base_prompt,
@@ -371,11 +214,8 @@ if st.button("🚀 Start AI Discussion"):
                         "Code Expert"
                     )
                     
-                    # Format response and update context
-                    formatted_response = format_ai_response(response, is_code=True)
-                    last_response = formatted_response
-                    
-                    st.session_state.chat_history.append({"role": model_name, "content": formatted_response})
+                    last_response = response
+                    st.session_state.chat_history.append({"role": model_name, "content": response})
                     
                     # Style the response with background color
                     bg_colors = {
@@ -394,7 +234,7 @@ if st.button("🚀 Start AI Discussion"):
                             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                         ">
                             <h3>{model_name} (Code Expert)</h3>
-                            <div>{formatted_response}</div>
+                            <div>{response}</div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -402,38 +242,44 @@ if st.button("🚀 Start AI Discussion"):
                 
                 time.sleep(1)
             
-            # Generate final consensus
-            final_consensus = get_final_consensus(conversation_context)
-            st.session_state.chat_history.append({"role": "Consensus", "content": final_consensus})
+            logger.info(f"Completed round {round_num + 1}")
 
-            # Display consensus with copy button
-            st.markdown("### ✅ Final Consensus")
+        # Generate and display final consensus
+        st.markdown("### ✅ Final Consensus")
+        consensus_prompt = """Please provide a clear consensus summary that:
+1. Synthesizes the key agreements between participants
+2. Highlights the best solutions agreed upon
+3. Provides concrete next steps for implementation
+4. Addresses any remaining concerns"""
+        
+        consensus = get_ai_response(consensus_prompt, conversation_context, "gpt4", "Consensus Builder")
+        st.session_state.chat_history.append({"role": "Consensus", "content": consensus})
+        
+        consensus_container = st.container()
+        with consensus_container:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: rgba(0, 200, 0, 0.1);
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                ">
+                    <div>{consensus}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             
-            consensus_container = st.container()
-            with consensus_container:
-                st.markdown(
-                    f"""
-                    <div style="
-                        background-color: rgba(0, 200, 0, 0.1);
-                        border-radius: 10px;
-                        padding: 20px;
-                        margin: 10px 0;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    ">
-                        <div>{format_markdown_response(final_consensus)}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                
-            # Add copy button for consensus
-            if st.button("📋 Copy Consensus"):
-                st.write(
-                    f"""
-                    <script>
-                        navigator.clipboard.writeText(`{final_consensus}`);
-                        alert('Consensus copied to clipboard!');
-                    </script>
-                    """,
-                    unsafe_allow_html=True
-                )
+        if st.button("📋 Copy Consensus"):
+            st.write(
+                f"""
+                <script>
+                    navigator.clipboard.writeText(`{consensus}`);
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
+
+logger.info("Script execution completed")
