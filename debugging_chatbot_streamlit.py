@@ -6,33 +6,18 @@ import logging
 import time
 import random
 import json
+from datetime import datetime
 
 # Configure logging
-logging.getLogger().setLevel(logging.WARNING)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# AI Roles for randomization
-AI_ROLES = [
-    "Code Architecture Expert",
-    "Performance Optimization Specialist",
-    "Security Implementation Expert",
-    "Database Design Specialist",
-    "UI/UX Implementation Expert",
-    "System Integration Specialist",
-    "Testing & Quality Assurance Expert",
-    "DevOps Implementation Specialist",
-    "API Design Expert",
-    "Scalability Architect"
-]
+# Add version tracking
+VERSION = "1.0.1"
+LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Contrarian prompts for dynamic discussion
-CONTRARIAN_PROMPTS = [
-    "While that approach could work, have we considered the implications of {}? I would suggest...",
-    "I see the merit in that solution, but what about {} as an alternative approach?",
-    "That's an interesting perspective, though I wonder if {} might be more effective...",
-    "I understand your reasoning, but have you considered the impact of {} on the system?",
-    "While I agree with the overall direction, I think {} might be worth exploring...",
-    "That's a solid approach, though we might want to consider {} as well...",
-]
+# Display version info
+st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
 
 # Set page title and favicon
 st.set_page_config(
@@ -41,84 +26,118 @@ st.set_page_config(
     layout="wide"
 )
 
+# Debug Info Section
+if st.sidebar.checkbox("Show Debug Info"):
+    st.sidebar.text("Debug Information")
+    st.sidebar.text(f"Python Version: {sys.version}")
+    st.sidebar.text(f"Streamlit Version: {st.__version__}")
+    st.sidebar.text(f"Current Working Directory: {os.getcwd()}")
+
+def log_operation(func):
+    """Decorator to log function operations"""
+    def wrapper(*args, **kwargs):
+        logger.info(f"Entering {func.__name__}")
+        try:
+            result = func(*args, **kwargs)
+            logger.info(f"Successfully completed {func.__name__}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {str(e)}")
+            raise
+    return wrapper
+
 @st.cache_resource
 def init_clients():
     """Initialize API clients for all AI models using Streamlit secrets"""
+    logger.info("Initializing AI clients")
     claude = None
     openai_client = None
     deepseek_api_key = None
     
     try:
-        # Initialize Claude if key exists
         if "CLAUDE_API_KEY" in st.secrets:
+            logger.info("Initializing Claude client")
             claude_api_key = st.secrets["CLAUDE_API_KEY"]
             claude = Client(api_key=claude_api_key)
         
-        # Initialize OpenAI if key exists
         if "OPENAI_API_KEY" in st.secrets:
+            logger.info("Initializing OpenAI client")
             openai_api_key = st.secrets["OPENAI_API_KEY"]
             openai_client = openai.Client(api_key=openai_api_key)
         
-        # Get DeepSeek key if exists
         if "DEEPSEEK_API_KEY" in st.secrets:
+            logger.info("Getting DeepSeek API key")
             deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
         
-        # Show warning for missing keys instead of error
-        missing_keys = []
-        if not claude:
-            missing_keys.append("Claude")
-        if not openai_client:
-            missing_keys.append("OpenAI")
-        if not deepseek_api_key:
-            missing_keys.append("DeepSeek")
+        # Log available services
+        services = []
+        if claude: services.append("Claude")
+        if openai_client: services.append("OpenAI")
+        if deepseek_api_key: services.append("DeepSeek")
+        logger.info(f"Available services: {', '.join(services)}")
         
-        if missing_keys:
-            st.warning(f"⚠️ Some AI services are unavailable: {', '.join(missing_keys)}. The app will work with limited functionality.")
+        return claude, openai_client, deepseek_api_key
+    except Exception as e:
+        logger.error(f"Error initializing clients: {str(e)}")
+        st.error(f"Error initializing AI clients: {str(e)}")
+        return None, None, None
 
+@log_operation
 def format_code_blocks(text):
     """Format code blocks with proper markdown syntax"""
+    logger.info("Starting code block formatting")
     try:
         if not text:
             return text
             
-        # Handle triple backtick code blocks
         lines = text.split('\n')
         formatted_lines = []
         in_code_block = False
         
-        for line in lines:
-            if line.strip().startswith('```'):
-                in_code_block = not in_code_block
-                formatted_lines.append(line)
-            else:
-                if in_code_block:
-                    # Preserve indentation in code blocks
+        for i, line in enumerate(lines):
+            try:
+                if line.strip().startswith('```'):
+                    in_code_block = not in_code_block
                     formatted_lines.append(line)
                 else:
-                    # Handle inline code
-                    formatted_lines.append(line)
+                    if in_code_block:
+                        formatted_lines.append(line)
+                    else:
+                        formatted_lines.append(line)
+            except Exception as e:
+                logger.error(f"Error processing line {i}: {str(e)}")
+                formatted_lines.append(line)
         
-        return '\n'.join(formatted_lines)
+        result = '\n'.join(formatted_lines)
+        logger.info("Code block formatting completed")
+        return result
     except Exception as e:
-        return text  # Return original text if formatting fails
+        logger.error(f"Error in format_code_blocks: {str(e)}")
+        return text
 
+@log_operation
 def format_paragraphs(text):
     """Ensure proper paragraph spacing in markdown"""
-    if not text:
-        return text
+    logger.info("Starting paragraph formatting")
+    try:
+        if not text:
+            return text
         
-    # Split on double newlines and filter empty strings
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    
-    # Rejoin with consistent spacing
-    return '\n\n'.join(paragraphs)
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        result = '\n\n'.join(paragraphs)
+        logger.info("Paragraph formatting completed")
+        return result
+    except Exception as e:
+        logger.error(f"Error in format_paragraphs: {str(e)}")
+        return text
 
+@log_operation
 def get_ai_response(prompt, history, model, role):
     """Get a response from the selected AI model with assigned role"""
+    logger.info(f"Getting AI response for model: {model}, role: {role}")
     try:
         role_context = f"You are acting as a {role}. "
         
-        # Format messages appropriately for each model
         if model == "claude":
             messages = [
                 {"role": "user", "content": f"{role_context}{history}\n\n{prompt}"}
@@ -129,6 +148,7 @@ def get_ai_response(prompt, history, model, role):
                 messages=messages
             )
             content = response.content
+            
         elif model == "gpt4":
             messages = [
                 {"role": "system", "content": f"You are acting as a {role}."},
@@ -141,6 +161,7 @@ def get_ai_response(prompt, history, model, role):
                 temperature=0.7
             )
             content = response.choices[0].message.content
+            
         elif model == "deepseek":
             messages = [
                 {"role": "system", "content": f"You are acting as a {role}."},
@@ -158,69 +179,18 @@ def get_ai_response(prompt, history, model, role):
                 stream=False
             )
             content = response.choices[0].message.content
-            
-        # Format the response content
-        return format_code_blocks(format_paragraphs(content))
-    except Exception as e:
-        return f"Error generating response: {str(e)}"
-        
-        if model == "claude":
-            response = claude_client.messages.create(
-                model="claude-3-5-sonnet-latest",
-                max_tokens=1024,
-                messages=messages
-            )
-            content = response.content
-        elif model == "gpt4":
-            response = openai_client.chat.completions.create(
-                model="gpt-4",  # Updated to use standard GPT-4 model name
-                messages=messages,
-                max_tokens=1024,
-                temperature=0.7
-            )
-            content = response.choices[0].message.content
-        elif model == "deepseek":
-            # Create OpenAI client configured for DeepSeek
-            deepseek_client = openai.Client(
-                base_url="https://api.deepseek.com/v1",
-                api_key=deepseek_api_key,
-            )
-            
-            response = deepseek_client.chat.completions.create(
-                model="deepseek-chat",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1024,
-                stream=False
-            )
-            content = response.choices[0].message.content
-        
-        return format_code_blocks(format_paragraphs(content))
-    except Exception as e:
-        return f"Error generating response: {str(e)}"
 
-def copy_to_clipboard(text):
-    """Create a JavaScript function to copy text to clipboard"""
-    js_code = f"""
-        navigator.clipboard.writeText('{text}').then(function() {{
-            console.log('Text copied');
-        }})
-        .catch(function(error) {{
-            console.error('Error copying text:', error);
-        }});
-    """
-    st.components.v1.html(f"""
-        <button onclick="{js_code}">Copy Consensus</button>
-    """, height=50)
-
-st.title("🦜 Parrot AI Thinktank")
+        logger.info(f"Successfully got response from {model}")
+        formatted_content = format_code_blocks(format_paragraphs(content))
+        return formatted_content
+    except Exception as e:
+        error_msg = f"Error generating response from {model}: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
 
 # Initialize AI clients
+logger.info("Starting client initialization")
 claude_client, openai_client, deepseek_api_key = init_clients()
-
-# Configure OpenAI client for DeepSeek compatibility
-if deepseek_api_key:
-    openai.api_base = "https://api.deepseek.com/v1"
 
 # Model selection with availability checks
 st.sidebar.header("Select AI Models for Discussion")
@@ -230,11 +200,13 @@ available_models = {
     "deepseek": deepseek_api_key is not None
 }
 
+logger.info(f"Available models: {available_models}")
+
 use_claude = st.sidebar.checkbox("Claude", value=True, disabled=not available_models["claude"])
 use_gpt4 = st.sidebar.checkbox("GPT-4", value=True, disabled=not available_models["gpt4"])
 use_deepseek = st.sidebar.checkbox("DeepSeek", value=False, disabled=not available_models["deepseek"])
 
-# Ensure at least two models are selected from available ones
+# Selected models tracking
 selected_models = []
 if use_claude and available_models["claude"]:
     selected_models.append(("claude", "🟡 Claude"))
@@ -242,6 +214,8 @@ if use_gpt4 and available_models["gpt4"]:
     selected_models.append(("gpt4", "🔵 GPT-4"))
 if use_deepseek and available_models["deepseek"]:
     selected_models.append(("deepseek", "🟣 DeepSeek"))
+
+logger.info(f"Selected models: {selected_models}")
 
 if len(selected_models) < 2:
     st.warning("Please select at least two AI models for discussion")
@@ -258,77 +232,68 @@ user_input = st.text_area("💡 Describe your coding problem:")
 max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
 
 if st.button("🚀 Start AI Discussion"):
+    logger.info("Starting new AI discussion")
     if user_input:
         st.session_state.chat_history.append({"role": "User", "content": user_input})
         
-        # Handle file upload
         if uploaded_file:
             file_extension = uploaded_file.name.split('.')[-1]
+            logger.info(f"Processing uploaded file: {uploaded_file.name}")
             if file_extension in allowed_extensions:
                 file_content = uploaded_file.getvalue().decode("utf-8")
-                st.session_state.chat_history.append({"role": "System", "content": f"📄 Attached file content:\n```{file_extension}\n{file_content}\n```"})
+                st.session_state.chat_history.append({
+                    "role": "System", 
+                    "content": f"📄 Attached file content:\n```{file_extension}\n{file_content}\n```"
+                })
             else:
+                logger.warning(f"Unsupported file type: {file_extension}")
                 st.warning("⚠️ Unsupported file type uploaded.")
 
         conversation_context = "\n\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history])
-
-        # Randomize initial responder and roles
+        
+        # Randomize initial responder order
         random.shuffle(selected_models)
-        current_roles = random.sample(AI_ROLES, len(selected_models))
-        model_roles = dict(zip(selected_models, current_roles))
+        logger.info(f"Randomized model order: {selected_models}")
 
         for round_num in range(max_rounds):
-            for i, (model, model_name) in enumerate(selected_models):
-                role = model_roles[(model, model_name)]
-                
-                with st.spinner(f"💭 Round {round_num+1}: {model_name} ({role}) is thinking..."):
-                    # Generate contrarian prompt for subsequent responses
-                    if i == 0:
-                        prompt = "Analyze the issue and propose a detailed solution."
-                    else:
-                        previous_response = st.session_state.chat_history[-1]["content"]
-                        contrarian_topic = random.choice([
-                            "scalability", "security", "maintainability", 
-                            "performance", "error handling", "edge cases"
-                        ])
-                        prompt = random.choice(CONTRARIAN_PROMPTS).format(contrarian_topic)
-                        prompt += f"\n\nPrevious response: {previous_response}"
+            logger.info(f"Starting round {round_num + 1}")
+            for model, model_name in selected_models:
+                with st.spinner(f"💭 {model_name} is thinking..."):
+                    response = get_ai_response(
+                        "Analyze the issue and propose a detailed solution." if round_num == 0
+                        else f"Consider the previous response and provide your perspective.",
+                        conversation_context,
+                        model,
+                        "Code Expert"
+                    )
                     
-                    response = get_ai_response(prompt, conversation_context, model, role)
                     st.session_state.chat_history.append({"role": model_name, "content": response})
-                    st.markdown(f"""### {model_name} ({role})\n\n{response}""")
+                    
+                    # Style the response
+                    bg_colors = {
+                        "🔵 GPT-4": "rgba(0, 122, 255, 0.1)",
+                        "🟡 Claude": "rgba(255, 196, 0, 0.1)",
+                        "🟣 DeepSeek": "rgba(147, 51, 234, 0.1)"
+                    }
+                    
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color: {bg_colors[model_name]};
+                            border-radius: 10px;
+                            padding: 20px;
+                            margin: 10px 0;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        ">
+                            <h3>{model_name} (Code Expert)</h3>
+                            <div>{response}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                 
                 time.sleep(1)
             
-            # Check for consensus
-            consensus_prompt = "Based on the discussion, is there a clear best approach? Answer YES or NO and briefly explain why."
-            consensus_check = get_ai_response(consensus_prompt, conversation_context, "gpt4", "Consensus Evaluator")
-            
-            if "YES" in consensus_check.upper():
-                break
+            logger.info(f"Completed round {round_num + 1}")
 
-        # Generate actionable consensus
-        final_prompt = """
-        Based on the discussion, provide a clear, actionable consensus that includes:
-        1. The specific solution agreed upon
-        2. Key implementation steps
-        3. Any important considerations or caveats
-        
-        Focus on the concrete solution rather than summarizing the discussion.
-        """
-        final_consensus = get_ai_response(final_prompt, conversation_context, "claude", "Solution Architect")
-        st.session_state.chat_history.append({"role": "Consensus", "content": final_consensus})
-        
-        st.markdown("### ✅ Final Consensus")
-        st.markdown(final_consensus)
-        
-        # Add copy consensus button
-        st.button("📋 Copy Consensus", on_click=lambda: st.write(copy_to_clipboard(final_consensus)))
-
-# Download chat history
-st.download_button(
-    "📥 Download Chat History",
-    data="\n\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.chat_history]),
-    file_name="debug_chat_history.txt",
-    mime="text/plain"
-)
+logger.info("Script execution completed")
