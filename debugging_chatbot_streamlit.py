@@ -8,6 +8,14 @@ import random
 import sys
 from datetime import datetime
 
+# Try to import markdown2, but don't fail if not available
+try:
+    import markdown2
+    HAS_MARKDOWN2 = True
+except ImportError:
+    HAS_MARKDOWN2 = False
+    st.sidebar.warning("📝 markdown2 not installed. Install with 'pip install markdown2' for better formatting.")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -376,6 +384,38 @@ if st.button("🚀 Start AI Discussion"):
                 
                 time.sleep(1)
             
-            logger.info(f"Completed round {round_num + 1}")
+            # Generate final consensus
+            final_consensus = get_final_consensus(conversation_context)
+            st.session_state.chat_history.append({"role": "Consensus", "content": final_consensus})
 
-logger.info("Script execution completed")
+            # Display consensus with copy button
+            st.markdown("### ✅ Final Consensus")
+            
+            consensus_container = st.container()
+            with consensus_container:
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color: rgba(0, 200, 0, 0.1);
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin: 10px 0;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    ">
+                        <div>{format_markdown_response(final_consensus)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                
+            # Add copy button for consensus
+            if st.button("📋 Copy Consensus"):
+                st.write(
+                    f"""
+                    <script>
+                        navigator.clipboard.writeText(`{final_consensus}`);
+                        alert('Consensus copied to clipboard!');
+                    </script>
+                    """,
+                    unsafe_allow_html=True
+                )
