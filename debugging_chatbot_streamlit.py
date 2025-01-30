@@ -44,18 +44,36 @@ st.set_page_config(
 @st.cache_resource
 def init_clients():
     """Initialize API clients for all AI models using Streamlit secrets"""
+    claude = None
+    openai_client = None
+    deepseek_api_key = None
+    
     try:
-        claude_api_key = st.secrets["CLAUDE_API_KEY"]
-        openai_api_key = st.secrets["OPENAI_API_KEY"]
-        deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
+        # Initialize Claude if key exists
+        if "CLAUDE_API_KEY" in st.secrets:
+            claude_api_key = st.secrets["CLAUDE_API_KEY"]
+            claude = Client(api_key=claude_api_key)
         
-        claude = Client(api_key=claude_api_key)
-        openai_client = openai.Client(api_key=openai_api_key)
+        # Initialize OpenAI if key exists
+        if "OPENAI_API_KEY" in st.secrets:
+            openai_api_key = st.secrets["OPENAI_API_KEY"]
+            openai_client = openai.Client(api_key=openai_api_key)
         
-        return claude, openai_client, deepseek_api_key
-    except Exception as e:
-        st.error(f"Error initializing AI clients: {str(e)}")
-        return None, None, None
+        # Get DeepSeek key if exists
+        if "DEEPSEEK_API_KEY" in st.secrets:
+            deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
+        
+        # Show warning for missing keys instead of error
+        missing_keys = []
+        if not claude:
+            missing_keys.append("Claude")
+        if not openai_client:
+            missing_keys.append("OpenAI")
+        if not deepseek_api_key:
+            missing_keys.append("DeepSeek")
+        
+        if missing_keys:
+            st.warning(f"⚠️ Some AI services are unavailable: {', '.join(missing_keys)}. The app will work with limited functionality.")
 
 def get_ai_response(prompt, history, model, role):
     """Get a response from the selected AI model with assigned role"""
@@ -125,19 +143,25 @@ claude_client, openai_client, deepseek_api_key = init_clients()
 if deepseek_api_key:
     openai.api_base = "https://api.deepseek.com/v1"
 
-# Model selection
+# Model selection with availability checks
 st.sidebar.header("Select AI Models for Discussion")
-use_claude = st.sidebar.checkbox("Claude", value=True)
-use_gpt4 = st.sidebar.checkbox("GPT-4", value=True)
-use_deepseek = st.sidebar.checkbox("DeepSeek", value=False)
+available_models = {
+    "claude": claude_client is not None,
+    "gpt4": openai_client is not None,
+    "deepseek": deepseek_api_key is not None
+}
 
-# Ensure at least two models are selected
+use_claude = st.sidebar.checkbox("Claude", value=True, disabled=not available_models["claude"])
+use_gpt4 = st.sidebar.checkbox("GPT-4", value=True, disabled=not available_models["gpt4"])
+use_deepseek = st.sidebar.checkbox("DeepSeek", value=False, disabled=not available_models["deepseek"])
+
+# Ensure at least two models are selected from available ones
 selected_models = []
-if use_claude:
+if use_claude and available_models["claude"]:
     selected_models.append(("claude", "🟡 Claude"))
-if use_gpt4:
+if use_gpt4 and available_models["gpt4"]:
     selected_models.append(("gpt4", "🔵 GPT-4"))
-if use_deepseek:
+if use_deepseek and available_models["deepseek"]:
     selected_models.append(("deepseek", "🟣 DeepSeek"))
 
 if len(selected_models) < 2:
