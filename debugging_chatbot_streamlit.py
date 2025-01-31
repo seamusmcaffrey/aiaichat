@@ -30,7 +30,7 @@ AI_ROLES = [
 # Initial demo state
 DEMO_CONVERSATION = [
     {"role": "User", "content": "Is a hotdog a sandwich? Please analyze this from a software architecture perspective."},
-    {"role": "\U0001f535 GPT-4", "content": """As a Systems Integration Expert, let me analyze this using software design patterns:
+    {"role": "🔵 GPT-4", "content": """As a Systems Integration Expert, let me analyze this using software design patterns:
 
 If we model a sandwich using Object-Oriented Design, we'd have:
 ```python
@@ -41,12 +41,37 @@ class Sandwich(FoodItem):
 ```
 
 The hotdog presents an interesting inheritance vs. composition dilemma. While it implements the key sandwich interface (bread containing fillings), its unique cylindrical bread architecture suggests it might be better as a separate microservice... I mean, food category."""},
+    {"role": "🟡 Claude", "content": """As a Code Architecture Expert, I must respectfully disagree with the proposed inheritance model.
+
+A hotdog clearly violates the Liskov Substitution Principle - you cannot reliably substitute a hotdog in contexts expecting a sandwich without breaking the application's... I mean, diner's expectations. 
+
+The single-seam bread architecture and cylindrical payload structure suggest this is more of a "Food Wrapper" pattern:
+```python
+class HotDog(WrapperFood):
+    def __init__(self, filling: Sausage, bun: CylindricalBun):
+        super().__init__(container=bun)
+        self.validate_structural_integrity()
+```"""},
+    {"role": "🔵 GPT-4", "content": """Your point about LSP is well-taken, but perhaps we're approaching this too rigidly. What about a Decorator pattern?
+
+A hotdog could be viewed as a runtime decoration of a base sausage component, with the bun acting as a stateless wrapper... Though I admit this architecture falls apart under load (literally, if the bun isn't properly reinforced)."""},
+    {"role": "Consensus", "content": """After careful technical analysis, we've reached consensus that a hotdog implements a unique architectural pattern distinct from traditional sandwich design principles.
+
+Key findings:
+1. Violates standard sandwich interface expectations
+2. Implements a specialized wrapper pattern
+3. Has unique structural integrity requirements
+4. Cannot be safely substituted in sandwich contexts
+
+Recommendation: Classify hotdog as its own microservice in the food hierarchy. Further investigation needed for edge cases like subway sandwiches which share the single-seam architecture.
+
+In conclusion: A hotdog is not a sandwich - it's a deployment configuration."""}
 ]
 
 # Set page config FIRST
 st.set_page_config(
     page_title="Parrot AI Thinktank",
-    page_icon="\U0001f99c",
+    page_icon="🦜",
     layout="wide"
 )
 
@@ -58,81 +83,41 @@ logger = logging.getLogger(__name__)
 VERSION = "1.0.1"
 LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Demo warning notice
-st.error("This is a demo page. Download the code [here](https://github.com/seamusmcaffrey/parrot) and check out the README for instructions on setting it up for use and see [here](https://www.prometheus.ninja/projects/parrot) for a detailed writeup and more information!", icon="\U0001f6a8")
+# Add demo warning notice at the top
+st.error("This is a demo page. Download the code [here](https://github.com/seamusmcaffrey/parrot) and check out the README for instructions on setting it up for use and see [here](https://www.prometheus.ninja/projects/parrot) for a detailed writeup and more information!", icon="🚨")
 
 # Move input elements to top
 st.write("## Start a Discussion")
-user_input = st.text_area("Describe your coding problem:", height=100)
-start_button = st.button("\U0001f680 Start AI Discussion")
+allowed_extensions = ["txt", "py", "json", "md", "ts", "tsx", "yaml", "yml", "csv", "toml", "ini", "html", "css", "js"]
+uploaded_file = st.file_uploader("📎 Attach a file for reference (optional)", type=allowed_extensions)
+user_input = st.text_area("💡 Describe your coding problem:", value="Is a hotdog a sandwich?", height=100)
+col1, col2 = st.columns([3, 1])
+with col1:
+    max_rounds = st.slider("🔄 Max AI Discussion Rounds", min_value=1, max_value=10, value=5)
+with col2:
+    st.write("")  # Spacing
+    st.write("")  # Spacing
+    start_button = st.button("🚀 Start AI Discussion")
+
+st.divider()  # Add visual separation
 
 # Initialize session state
 if "showing_demo" not in st.session_state:
+    logger.info("Initializing demo state")
     st.session_state.showing_demo = True
-
-if start_button:
-    logger.info("Start button pressed - removing demo content")
-    st.session_state.showing_demo = False
-    
-    # Display red warning message
-    st.markdown(
-        """
-        <div style="background-color: #ffcccc; color: #a94442; padding: 15px; border-radius: 5px;">
-            <strong>⚠️ Sorry! This is just a visual demo.</strong><br>
-            Download the code <a href="https://github.com/seamusmcaffrey/parrot" target="_blank">here</a> and check out the README for instructions on setting it up for use with your own API keys. 
-            See <a href="https://www.prometheus.ninja/projects/parrot" target="_blank">here</a> for a detailed writeup and more information!
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# Keep the rest of the functional code intact
-if "chat_history" not in st.session_state:
     st.session_state.chat_history = DEMO_CONVERSATION.copy()
 
-st.title("🦜 Parrot AI Thinktank")
-
-# Display demo if we're in demo state
-if st.session_state.showing_demo:
-    logger.info("Displaying demo conversation")
-    st.info("👋 Welcome! Here's a sample discussion to demonstrate how our AI experts analyze problems:", icon="🎯")
-    
-    for msg in DEMO_CONVERSATION:
-        st.markdown(f"**{msg['role']}:** {msg['content']}")
-
-@st.cache_resource
-def init_clients():
-    """Initialize API clients for all AI models using Streamlit secrets"""
-    logger.info("Initializing AI clients")
-    claude = None
-    openai_client = None
-    deepseek_api_key = None
-    
-    try:
-        if "CLAUDE_API_KEY" in st.secrets:
-            logger.info("Initializing Claude client")
-            claude_api_key = st.secrets["CLAUDE_API_KEY"]
-            claude = Client(api_key=claude_api_key)
-        
-        if "OPENAI_API_KEY" in st.secrets:
-            logger.info("Initializing OpenAI client")
-            openai_api_key = st.secrets["OPENAI_API_KEY"]
-            openai_client = openai.Client(api_key=openai_api_key)
-        
-        if "DEEPSEEK_API_KEY" in st.secrets:
-            logger.info("Getting DeepSeek API key")
-            deepseek_api_key = st.secrets["DEEPSEEK_API_KEY"]
-        
-        return claude, openai_client, deepseek_api_key
-    except Exception as e:
-        logger.error(f"Error initializing clients: {str(e)}")
-        return None, None, None
-
-# Initialize AI clients
-claude_client, openai_client, deepseek_api_key = init_clients()
+if "model_selection" not in st.session_state:
+    logger.info("Initializing model selection state")
+    st.session_state.model_selection = {
+        "claude": True,
+        "gpt4": True,
+        "deepseek": False
+    }
 
 # Display version info
 st.sidebar.info(f"Version: {VERSION}\nLast Updated: {LAST_UPDATE}")
+
 @st.cache_resource
 def init_clients():
     """Initialize API clients for all AI models using Streamlit secrets"""
