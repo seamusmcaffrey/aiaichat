@@ -209,6 +209,24 @@ if len(selected_models) < 2 and not st.session_state.showing_demo:
     st.warning("Please select at least two AI models for discussion")
     st.stop()
 
+if start_button:
+    logger.info("Starting new AI discussion - clearing demo state")
+    st.session_state.showing_demo = False
+    st.session_state.chat_history = []
+    
+    # Display red warning message
+    st.markdown(
+        """
+        <div style="background-color: #ffcccc; color: #a94442; padding: 15px; border-radius: 5px;">
+            <strong>⚠️ Sorry! This is just a visual demo.</strong><br>
+            Download the code <a href="https://github.com/seamusmcaffrey/parrot" target="_blank">here</a> and check out the README for instructions on setting it up for use with your own API keys. 
+            See <a href="https://www.prometheus.ninja/projects/parrot" target="_blank">here</a> for a detailed writeup and more information!
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.stop()
+
 # Display demo if we're in demo state
 if st.session_state.showing_demo:
     logger.info("Displaying demo conversation")
@@ -239,7 +257,14 @@ if st.session_state.showing_demo:
             )
 
 def get_ai_response(prompt, history, model, role):
-    """Get a response from the selected AI model with assigned role"""
+    """Get a response from the selected AI model with assigned role
+    Args:
+        prompt (str): The current prompt/question
+        history (str): Previous conversation history
+        model (str): AI model to use ('claude', 'gpt4', or 'deepseek')
+        role (str): Expert role assigned to the AI
+    Returns:
+        str: AI model's response"""
     logger.info(f"Getting AI response for model: {model}, role: {role}")
     try:
         if st.session_state.showing_demo:
@@ -264,7 +289,7 @@ def get_ai_response(prompt, history, model, role):
                 {"role": "user", "content": f"{history}\n\n{prompt}"}
             ]
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",
                 messages=messages,
                 max_tokens=1024,
                 temperature=0.7
@@ -300,6 +325,20 @@ if start_button:
     logger.info("Starting new AI discussion - clearing demo state")
     st.session_state.showing_demo = False
     st.session_state.chat_history = []
+    
+    # Display demo mode warning
+    if not any([claude_client, openai_client, deepseek_api_key]):
+        st.markdown(
+            """
+            <div style="background-color: #ffcccc; color: #a94442; padding: 15px; border-radius: 5px;">
+                <strong>⚠️ Sorry! This is just a visual demo.</strong><br>
+                Download the code <a href="https://github.com/seamusmcaffrey/parrot" target="_blank">here</a> and check out the README for instructions on setting it up for use with your own API keys. 
+                See <a href="https://www.prometheus.ninja/projects/parrot" target="_blank">here</a> for a detailed writeup and more information!
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.stop()
     
     if user_input:
         st.session_state.chat_history.append({"role": "User", "content": user_input})
@@ -423,14 +462,47 @@ Current conversation history:
             )
             
             if st.button("📋 Copy Consensus"):
-                st.write(
-                    f"""
-                    <script>
-                        navigator.clipboard.writeText(`{consensus}`);
-                        alert('Consensus copied to clipboard!');
-                    </script>
-                    """,
-                    unsafe_allow_html=True
-                )
+                try:
+                    st.write(
+                        f"""
+                        <script>
+                            navigator.clipboard.writeText(`{consensus}`);
+                            alert('Consensus copied to clipboard!');
+                        </script>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                except Exception as e:
+                    logger.error(f"Error copying consensus: {str(e)}")
+                    st.error("Failed to copy consensus to clipboard.")
+
+# Display demo if we're in demo state
+if st.session_state.showing_demo:
+    logger.info("Displaying demo conversation")
+    st.info("👋 Welcome! Here's a sample discussion to demonstrate how our AI experts analyze problems:", icon="🎯")
+    
+    for msg in DEMO_CONVERSATION:
+        if msg["role"] != "User":
+            bg_colors = {
+                "🔵 GPT-4": "rgba(0, 122, 255, 0.1)",
+                "🟡 Claude": "rgba(255, 196, 0, 0.1)",
+                "🟣 DeepSeek": "rgba(147, 51, 234, 0.1)",
+                "Consensus": "rgba(0, 200, 0, 0.1)"
+            }
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: {bg_colors.get(msg["role"], "rgba(200, 200, 200, 0.1)")};
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 10px 0;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                ">
+                    <h3>{msg["role"]}</h3>
+                    <div>{msg["content"]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 logger.info("Script execution completed")
