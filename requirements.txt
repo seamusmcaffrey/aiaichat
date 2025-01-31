@@ -1,4 +1,7 @@
-streamlit
-openai
-anthropic
-markdown2==2.4.10
+streamlit>=1.24.0
+anthropic>=0.8.0
+openai>=1.0.0
+python-dotenv>=0.19.0
+requests>=2.28.0
+markdown2>=2.4.10
+python-markdown-math>=0.8

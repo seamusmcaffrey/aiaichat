@@ -84,7 +84,7 @@ VERSION = "1.0.1"
 LAST_UPDATE = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # Add demo warning notice at the top
-st.error("🚨 This is a demo page. Please visit https://www.prometheus.ninja/ for instructions on setting it up for use!", icon="🔗")
+st.error("This is a demo page. Download the code [here](https://github.com/seamusmcaffrey/parrot) and check out the README for instructions on setting it up for use and see [here](https://www.prometheus.ninja/projects/parrot) for a detailed writeup and more information!", icon="🚨")
 
 # Move input elements to top
 st.write("## Start a Discussion")
